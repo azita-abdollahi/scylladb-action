@@ -1,0 +1,11 @@
+{
+    "name": "@azita-abdollahi/scylladb-action",
+    "scripts": {
+        "test": "jest --detectOpenHandles --roots ./test"
+    },
+    "devDependencies": {
+        "jest": "29.7.0",
+        "assert": "2.1.0",
+        "express-cassandra": "2.9.1"
+    }
+}
