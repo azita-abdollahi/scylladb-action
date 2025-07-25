@@ -1,0 +1,68 @@
+name: 'Setup ScyllaDB'
+description: 'Sets up ScyllaDB with keyspace and user configuration'
+author: 'azita-abdollahi'
+branding:
+  icon: 'database' 
+  color: 'blue'
+inputs:
+  network:
+    description: 'Docker network to use'
+    required: false
+    default: 'bridge'
+
+  version:
+    description: 'ScyllaDB version to use'
+    required: false
+    default: 'latest'
+
+  host:
+    description: 'ScyllaDB hostname'
+    required: false
+    default: 'scylla'
+
+  port:
+    description: 'ScyllaDB port'
+    required: false
+    default: '9042'
+
+  username:
+    description: 'ScyllaDB username'
+    required: false
+    default: 'cassandra'
+
+  password:
+    description: 'ScyllaDB password'
+    required: false
+    default: 'cassandra'
+
+  keyspace:
+    description: 'Keyspace to create'
+    required: false
+    default: 'test'
+
+  replication:
+    description: 'Replication config'
+    required: false
+    default: "{'class': 'SimpleStrategy', 'replication_factor': 1}"
+
+  consistency:
+    description: 'Consistency level for scripts'
+    required: false
+    default: 'QUORUM'
+
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+  args:
+    - ${{ inputs.network }}
+    - ${{ inputs.version }}
+    - ${{ inputs.host }}
+    - ${{ inputs.port }}
+    - ${{ inputs.username }}
+    - ${{ inputs.password }}
+    - ${{ inputs.keyspace }}
+    - ${{ inputs.replication }}
+    - ${{ inputs.consistency }}
+
+
+
