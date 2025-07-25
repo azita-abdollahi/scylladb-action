@@ -1,4 +1,4 @@
-# ScyllaDB GitHub Action 
+# ScyllaDB GitHub Action [![ScyllaDB Action Tests](https://github.com/azita-abdollahi/scylladb-action/actions/workflows/test.yaml/badge.svg)](https://github.com/azita-abdollahi/scylladb-action/actions/workflows/test.yaml)
 
 A GitHub Action for setting up ScyllaDB in CI/CD pipelines with automatic keyspace and user configuration.
 
