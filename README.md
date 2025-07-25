@@ -1,0 +1,2 @@
+# scylladb-action
+scylladb action
