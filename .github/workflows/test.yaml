@@ -1,0 +1,94 @@
+name: ScyllaDB Action Tests
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+env:
+  SCYLLA_USERNAME: admin
+  SCYLLA_PASSWORD: admin
+  SCYLLA_PORT: 9042
+  SCYLLA_KEYSPACE: test
+  SCYLLA_DATACENTER: datacenter1
+  CONSISTENCY_LEVEL: QUORUM
+  SCYLLA_REPLICATION: "{'class': 'SimpleStrategy', 'replication_factor': 1}"
+
+jobs:
+  setup-scylladb:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [18.x, 20.x]
+    env:
+      SCYLLA_HOSTNAME: localhost
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          
+      - name: Run ScyllaDB Action
+        uses: ./ 
+        with:
+          host: ${{ env.SCYLLA_HOSTNAME }}
+          username: ${{ env.SCYLLA_USERNAME }}
+          password: ${{ env.SCYLLA_PASSWORD }}
+          keyspace: ${{ env.SCYLLA_KEYSPACE }}
+          datacenter: ${{ env.SCYLLA_DATACENTER }}
+          replication: ${{ env.SCYLLA_REPLICATION }}
+
+      - name: Install dependencies
+        run: npm install 
+
+      - name: Run tests
+        run: npm run test 
+        env: 
+          SCYLLA_REPLICATION: '{"class": "SimpleStrategy", "replication_factor": 1}'
+
+  test-scylladb:
+    container: 
+      image: docker://ubuntu:latest
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [18.x, 20.x]
+    env:
+      SCYLLA_HOSTNAME: scylla
+    steps:
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run ScyllaDB Action
+        uses: ./
+        with:
+          network: ${{ job.container.network }}
+          host: ${{ env.SCYLLA_HOSTNAME }}
+          username: ${{ env.SCYLLA_USERNAME }}
+          password: ${{ env.SCYLLA_PASSWORD }}
+          keyspace: ${{ env.SCYLLA_KEYSPACE }}
+          datacenter: ${{ env.SCYLLA_DATACENTER }}
+          replication: ${{ env.SCYLLA_REPLICATION }}
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run Tests
+        run: npm run test 
+        env:
+          SCYLLA_REPLICATION: '{"class": "SimpleStrategy", "replication_factor": 1}'
+
