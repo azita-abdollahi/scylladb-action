@@ -15,7 +15,7 @@ A GitHub Action for setting up ScyllaDB in CI/CD pipelines with automatic keyspa
 ### Basic Example
 
 ```yaml
-- uses: azita-abdollahi/scylla-action@v1.0.0
+- uses: azita-abdollahi/scylladb-action@v1.0.0
   with:
     host: scylla
     keyspace: test_ci
