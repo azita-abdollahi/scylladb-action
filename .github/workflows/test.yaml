@@ -43,7 +43,6 @@ jobs:
           username: ${{ env.SCYLLA_USERNAME }}
           password: ${{ env.SCYLLA_PASSWORD }}
           keyspace: ${{ env.SCYLLA_KEYSPACE }}
-          datacenter: ${{ env.SCYLLA_DATACENTER }}
           replication: ${{ env.SCYLLA_REPLICATION }}
 
       - name: Install dependencies
@@ -81,7 +80,6 @@ jobs:
           username: ${{ env.SCYLLA_USERNAME }}
           password: ${{ env.SCYLLA_PASSWORD }}
           keyspace: ${{ env.SCYLLA_KEYSPACE }}
-          datacenter: ${{ env.SCYLLA_DATACENTER }}
           replication: ${{ env.SCYLLA_REPLICATION }}
 
       - name: Install dependencies
