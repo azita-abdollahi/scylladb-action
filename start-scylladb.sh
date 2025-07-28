@@ -50,10 +50,7 @@ docker run -d --name scylla \
   --authorizer CassandraAuthorizer \
   --listen-address 0.0.0.0 \
   --rpc-address 0.0.0.0 \
-  --broadcast-rpc-address "${SCYLLA_HOST}" \
-
-echo "Container started. Waiting for initialization..."
-sleep 10  
+  --broadcast-rpc-address "${SCYLLA_HOST}" 
 
 echo "Waiting for ScyllaDB to be ready..."
 for i in $(seq 1 30); do
