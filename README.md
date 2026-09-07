@@ -4,18 +4,19 @@ A GitHub Action for setting up ScyllaDB in CI/CD pipelines with automatic keyspa
 
 ## Features
 
-- 🚀 Single-command ScyllaDB setup
-- 🔐 Automatic user creation and security configuration
-- 🗃️ Keyspace initialization
-- 🧪 Tested with Node.js applications
-- 🔄 Supports multiple Node.js versions via matrix strategy
+- 🚀 One-step ScyllaDB startup (Docker action — works wherever Docker is available)
+- 🔐 Password authentication with your own superuser (bootstrapped via ScyllaDB's maintenance socket)
+- 🗃️ Keyspace created automatically: NetworkTopologyStrategy, replication factor 1
+- 🧲 Works both in normal runner jobs and inside container jobs (shared Docker network)
+- 🧹 ScyllaDB container is cleaned up automatically when the job ends
+- 🧪 Tested against real CRUD workloads (Node.js + express-cassandra) on Node 22 and 26
 
 ## Usage
 
 ### Basic Example
 
 ```yaml
-- uses: azita-abdollahi/scylladb-action@v1.0.0
+- uses: azita-abdollahi/scylladb-action@v2.0.0
   with:
     host: scylla
     keyspace: test_ci
@@ -26,28 +27,26 @@ A GitHub Action for setting up ScyllaDB in CI/CD pipelines with automatic keyspa
 | Parameter        | Required | Default                          | Description        |
 |----------------- |----------|----------------------------------|--------------------|
 | `network`        | No       | `bridge`                         | Docker network     |
-| `version`        | No       | `latest`                         | ScyllaDB version   |
-| `host`           | No       | `scylla`                         | Container hostname |
-| `port`           | No       | `9042`                           | CQL port           |
-| `username`       | No       | `cassandra`                      | Admin username     |
-| `password`       | No       | `cassandra`                      | Admin password   |   
-| `keyspace`       | No       | `test`                           | Keyspace name      |
-| `replication`    | No       | `{'class':'SimpleStrategy', 'replication_factor':1}`  | Replication config |
-| `consistency`    | No       | `QUORUM`                         | Default consistency|level              |
+| `version`        | No       | `2026.3`                         | ScyllaDB version   |
+| `host`           | No       | `scylla`                         | ame clients use to reach the server; localhost for runner jobs |
+| `port`           | No       | `9042`                           | Host port mapped to CQL port 9042           |
+| `username`       | No       | `admin`                          | Superuser to create|
+| `password`       | No       | `admin`                          | Superuser password |   
+| `keyspace`       | No       | `test`                           | Keyspace to create |
 
 ## Testing
 
-Includes comprehensive test suite with:
-
-- User creation/authentication
-- CRUD operations validation
-- Schema migrations
-- Connection resilience
+|Setting	                  |                             Value                              |
+|---------------------------|----------------------------------------------------------------|
+|Contact point	            |   host:9042                                                    | 
+|Credentials	              |   username / password inputs                                   |
+|Keyspace	                  |   keyspace input                                               |
+|Local datacenter	          |   datacenter1 (ScyllaDB default; required by NTS-aware drivers)|
 
 ## Requirements
 
 - Docker
-- Node.js 18+
+- Node.js 22+
 - GitHub Actions environment
 
 ## License 
