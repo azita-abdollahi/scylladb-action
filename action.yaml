@@ -6,63 +6,28 @@ branding:
   color: 'blue'
 inputs:
   network:
-    description: 'Docker network to use'
-    required: false
+    description: 'Docker network for the ScyllaDB container (use  in container jobs)'
     default: 'bridge'
-
   version:
-    description: 'ScyllaDB version to use'
-    required: false
-    default: 'latest'
-
+    description: 'scylladb/scylla image tag; pin an LTS tag for reproducible CI'
+    default: '2026.3'
   host:
-    description: 'ScyllaDB hostname'
-    required: false
+    description: 'Name clients use to reach ScyllaDB '
     default: 'scylla'
-
   port:
-    description: 'ScyllaDB port'
-    required: false
+    description: 'Host port mapped to CQL port 9042'
     default: '9042'
-
   username:
-    description: 'ScyllaDB username'
-    required: false
-    default: 'cassandra'
-
+    description: 'Superuser to create'
+    default: 'admin'
   password:
-    description: 'ScyllaDB password'
-    required: false
-    default: 'cassandra'
-
+    description: 'Password for the superuser '
+    default: 'admin'
   keyspace:
     description: 'Keyspace to create'
-    required: false
     default: 'test'
-
-  replication:
-    description: 'Replication config'
-    required: false
-    default: "{'class': 'SimpleStrategy', 'replication_factor': 1}"
-
-  consistency:
-    description: 'Consistency level for scripts'
-    required: false
-    default: 'QUORUM'
 
 runs:
   using: 'docker'
   image: 'Dockerfile'
-  args:
-    - ${{ inputs.network }}
-    - ${{ inputs.version }}
-    - ${{ inputs.host }}
-    - ${{ inputs.port }}
-    - ${{ inputs.username }}
-    - ${{ inputs.password }}
-    - ${{ inputs.keyspace }}
-    - ${{ inputs.replication }}
-    - ${{ inputs.consistency }}
-
-
-
+  post-entrypoint: '/cleanup.sh'

@@ -2,91 +2,72 @@ name: ScyllaDB Action Tests
 
 on:
   push:
-    branches:
-      - master
+    branches: [master]
   pull_request:
-    branches:
-      - master
+    branches: [master]
 
 env:
   SCYLLA_USERNAME: admin
   SCYLLA_PASSWORD: admin
   SCYLLA_PORT: 9042
   SCYLLA_KEYSPACE: test
-  SCYLLA_DATACENTER: datacenter1
-  CONSISTENCY_LEVEL: QUORUM
-  SCYLLA_REPLICATION: "{'class': 'SimpleStrategy', 'replication_factor': 1}"
+  SCYLLA_DATACENTER: datacenter1   
 
 jobs:
-  setup-scylladb:
+  test-on-runner:
+    name: Tests on the runner (localhost)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        node-version: [18.x, 20.x]
+        node-version: [22.x, 26.x]
     env:
       SCYLLA_HOSTNAME: localhost
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node-version }}
-          
-      - name: Run ScyllaDB Action
-        uses: ./ 
+
+      - name: Start ScyllaDB
+        uses: ./
         with:
-          host: ${{ env.SCYLLA_HOSTNAME }}
-          username: ${{ env.SCYLLA_USERNAME }}
-          password: ${{ env.SCYLLA_PASSWORD }}
-          keyspace: ${{ env.SCYLLA_KEYSPACE }}
-          replication: ${{ env.SCYLLA_REPLICATION }}
+          host: localhost
 
-      - name: Install dependencies
-        run: npm install 
+      - run: npm install
+      - run: npm run test
 
-      - name: Run tests
-        run: npm run test 
-        env: 
-          SCYLLA_REPLICATION: '{"class": "SimpleStrategy", "replication_factor": 1}'
-
-  test-scylladb:
-    container: 
-      image: docker://ubuntu:latest
+  test-in-container:
+    name: Tests inside a container job (shared docker network)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        node-version: [18.x, 20.x]
+        node-version: [22.x, 26.x]
+    container:
+      image: docker://ubuntu:24.04
     env:
       SCYLLA_HOSTNAME: scylla
     steps:
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - name: Install system dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends libatomic1
+
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node-version }}
 
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - name: Run ScyllaDB Action
+      - name: Start ScyllaDB
         uses: ./
         with:
           network: ${{ job.container.network }}
-          host: ${{ env.SCYLLA_HOSTNAME }}
-          username: ${{ env.SCYLLA_USERNAME }}
-          password: ${{ env.SCYLLA_PASSWORD }}
-          keyspace: ${{ env.SCYLLA_KEYSPACE }}
-          replication: ${{ env.SCYLLA_REPLICATION }}
+          host: scylla
 
-      - name: Install dependencies
-        run: npm install
-
-      - name: Run Tests
-        run: npm run test 
-        env:
-          SCYLLA_REPLICATION: '{"class": "SimpleStrategy", "replication_factor": 1}'
-
+      - run: npm install
+      - run: npm run test

@@ -1,98 +1,90 @@
 #!/bin/sh
-set -eo pipefail
+set -eu
 
-# Configuration variables with defaults
-DOCKER_NETWORK=${1:-"bridge"}
-SCYLLA_VERSION=${2:-"latest"}
-SCYLLA_HOST=${3:-"scylla"}
-SCYLLA_PORT=${4:-"9042"}
-SCYLLA_USERNAME=${5:-"admin"}
-SCYLLA_PASSWORD=${6:-"admin"}
-KEYSPACE=${7:-"test"}
-REPLICATION=${8:-"{'class': 'SimpleStrategy', 'replication_factor': 1}"}
-CONSISTENCY_LEVEL=${9:-"QUORUM"}
+# GitHub passes action inputs to Docker actions as INPUT_<NAME> env vars.
+NETWORK="${INPUT_NETWORK:-bridge}"
+VERSION="${INPUT_VERSION:-latest}"
+HOST="${INPUT_HOST:-scylla}"
+PORT="${INPUT_PORT:-9042}"
+USERNAME="${INPUT_USERNAME:-admin}"
+PASSWORD="${INPUT_PASSWORD:-admin}"
+KEYSPACE="${INPUT_KEYSPACE:-test}"
 
-# Ensure required parameters are set
+CONTAINER=scylla
+
 if [ -z "$KEYSPACE" ]; then
-  echo "ERROR: Keyspace name must be specified"
+  echo "::error::keyspace must not be empty"
   exit 1
 fi
+case "$PASSWORD" in *"'"*)
+  echo "::error::password must not contain single quotes (it is interpolated into CQL)"
+  exit 1
+esac
 
-# Log configuration
-echo "Starting ScyllaDB with the following configuration:"
-echo "  - Network:      ${DOCKER_NETWORK}"
-echo "  - Host:         ${SCYLLA_HOST}"
-echo "  - Port:         ${SCYLLA_PORT}"
-echo "  - Version:      ${SCYLLA_VERSION}"
-echo "  - Keyspace:     ${KEYSPACE}"
-echo "  - Replication:  ${REPLICATION}"
-echo "  - Consistency:  ${CONSISTENCY_LEVEL}"
+echo "Starting ScyllaDB ${VERSION} on network '${NETWORK}', reachable as ${HOST}:${PORT}"
+echo "  superuser: ${USERNAME}, keyspace: ${KEYSPACE}"
 
-# Cleanup function
-cleanup() {
-  echo "Cleaning up..."
-  docker rm -f scylla >/dev/null 2>&1 || true
-}
+docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
+
+cleanup() { docker rm -f "$CONTAINER" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 
 # Start ScyllaDB container 
 echo "Starting ScyllaDB container..."
-docker run -d --name scylla \
-  --network "${DOCKER_NETWORK}" \
-  --hostname "${SCYLLA_HOST}" \
-  -p "${SCYLLA_PORT}:9042" \
-  --health-cmd "nodetool status" \
-  --health-interval "10s" \
-  --health-timeout "5s" \
-  --health-retries 3 \
-  "scylladb/scylla:${SCYLLA_VERSION}" \
+docker run -d --name "$CONTAINER" \
+  --network "$NETWORK" \
+  --hostname "$HOST" \
+  -p "${PORT}:9042" \
+  "scylladb/scylla:${VERSION}" \
   --authenticator PasswordAuthenticator \
   --authorizer CassandraAuthorizer \
   --listen-address 0.0.0.0 \
   --rpc-address 0.0.0.0 \
-  --broadcast-rpc-address "${SCYLLA_HOST}" 
+  --broadcast-rpc-address "$HOST"
 
-echo "Waiting for ScyllaDB to be ready..."
-for i in $(seq 1 30); do
-    if docker exec scylla cqlsh -u cassandra -p cassandra -e "SELECT release_version FROM system.local;" &> /dev/null; then
-        echo "ScyllaDB is ready."
-        break
-    fi
-    echo "ScyllaDB not ready, retrying in 2 seconds... (attempt $i/30)"
-    sleep 2
+# 1) Wait for the maintenance socket 
+echo "Waiting for ScyllaDB maintenance socket..."
+i=1
+until docker exec "$CONTAINER" cqlsh /var/lib/scylla/cql.m \
+        -e "SELECT release_version FROM system.local;" >/dev/null 2>&1; do
+  if [ "$i" -ge 60 ]; then
+    echo "::error::ScyllaDB did not become ready in time"
+    docker logs "$CONTAINER" || true
+    exit 1
+  fi
+  echo "  not ready yet ($i/60)"
+  i=$((i + 1))
+  sleep 3
 done
 
-# Database initialization
-echo "Initializing database..."
+# 2) Create the requested superuser
+echo "Creating superuser '${USERNAME}'..."
+docker exec "$CONTAINER" cqlsh /var/lib/scylla/cql.m -e \
+  "CREATE ROLE IF NOT EXISTS \"${USERNAME}\" WITH PASSWORD = '${PASSWORD}' AND SUPERUSER = true AND LOGIN = true;"
 
-# Create keyspace
+echo "Waiting for authenticated CQL access..."
+i=1
+until docker exec "$CONTAINER" cqlsh -u "$USERNAME" -p "$PASSWORD" \
+        -e "SELECT release_version FROM system.local;" >/dev/null 2>&1; do
+  if [ "$i" -ge 30 ]; then
+    echo "::error::could not authenticate as '${USERNAME}'"
+    docker logs "$CONTAINER" || true
+    exit 1
+  fi
+  echo "  not ready yet ($i/30)"
+  i=$((i + 1))
+  sleep 2
+done
+
+# 3) Create the keyspace.
 echo "Creating keyspace '${KEYSPACE}'..."
-docker exec scylla cqlsh -u cassandra -p cassandra -e \
-  "CREATE KEYSPACE IF NOT EXISTS \"${KEYSPACE}\" WITH replication = ${REPLICATION} AND durable_writes = true;"
+docker exec "$CONTAINER" cqlsh -u "$USERNAME" -p "$PASSWORD" -e \
+  "CREATE KEYSPACE IF NOT EXISTS \"${KEYSPACE}\"
+   WITH replication = {'class': 'NetworkTopologyStrategy', 'replication_factor': 1}
+   AND tablets = {'enabled': false};"
 
-# Create admin user
-echo "Creating admin user '${SCYLLA_USERNAME}'..."
-docker exec scylla cqlsh -u cassandra -p cassandra -e \
-  "CREATE ROLE IF NOT EXISTS \"${SCYLLA_USERNAME}\" WITH PASSWORD = '${SCYLLA_PASSWORD}' AND SUPERUSER = true AND LOGIN = true;"
+# 4) Verify
+docker exec "$CONTAINER" cqlsh -u "$USERNAME" -p "$PASSWORD" -e "DESCRIBE KEYSPACE \"${KEYSPACE}\";"
 
-# Grant permissions
-echo "Granting permissions..."
-docker exec scylla cqlsh -u cassandra -p cassandra -e \
-  "GRANT ALL PERMISSIONS ON KEYSPACE \"${KEYSPACE}\" 
-   TO \"${SCYLLA_USERNAME}\";"
-
-# Remove default user (if not the same as new admin)
-if [ "${SCYLLA_USERNAME}" != "cassandra" ]; then
-  echo "Removing default 'cassandra' user..."
-  docker exec scylla cqlsh -u "${SCYLLA_USERNAME}" -p "${SCYLLA_PASSWORD}" -e \
-    "DROP ROLE IF EXISTS cassandra;"
-fi
-
-# Verify setup
-echo "Verifying setup..."
-docker exec scylla cqlsh -u "${SCYLLA_USERNAME}" -p "${SCYLLA_PASSWORD}" -e \
-  "DESCRIBE KEYSPACE \"${KEYSPACE}\";"
-
-echo "ScyllaDB setup completed successfully."
-trap - EXIT  
-
+echo "ScyllaDB is up and ready."
+trap - EXIT   
